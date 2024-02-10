@@ -6,14 +6,10 @@ Install PySpark: https://spark.apache.org/docs/latest/api/python/getting_started
 
 Install the project:
 
-Download
-Copy code
 $ pip install .
 Usage
 Run the project:
 
-Download
-Copy code
 $ my_project
 This will read data from different data sources and display the results.
 
@@ -35,13 +31,9 @@ The main function in main.py demonstrates how to use the read_data function to r
 Running the Code
 To run the code, you need to replace the paths with your actual paths to the data files or directories. You can run the project using the following command:
 
-Download
-Copy code
 $ my_project
 Alternatively, you can run the main function in data_reader.py directly using the following command:
 
-Download
-Copy code
 $ python -m src.data_reader
 Testing
 To test the code, you can use PySpark's built-in testing framework. You can create test cases for each data source and verify that the data is read correctly.
