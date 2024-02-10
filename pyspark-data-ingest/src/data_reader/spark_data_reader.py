@@ -2,6 +2,8 @@ import pathlib
 from pyspark.sql import SparkSession, DataFrame
 from typing import Optional, Dict, List
 import contextlib
+from setup_storage.cloud_env_setup import main as cloud_main
+
 
 def read_local_data(
     spark: SparkSession,
@@ -136,6 +138,10 @@ def main():
         azure_avro_data.show()
 
 if __name__ == "__main__":
+
+    cloud_main()
+    print("Storage is set up. Continuing with the rest of the code...")
+
     with manage_spark_session("Reading Different Data Sources") as spark:
         # Reading CSV data from the local file system
         csv_options = {"header": "true", "inferSchema": "true"}
