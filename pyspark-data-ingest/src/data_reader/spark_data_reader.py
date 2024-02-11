@@ -1,8 +1,8 @@
 import pathlib
 from pyspark.sql import SparkSession, DataFrame
 from typing import Optional, Dict, List
-import contextlib
-from setup_storage.cloud_env_setup import main as cloud_main
+
+from setup_storage.cloud_env_setup import main as cloud_env_setup_main
 
 
 def read_local_data(
@@ -30,6 +30,7 @@ def read_local_data(
             reader = reader.option(key, value)
 
     return reader.load(str(path))
+
 
 def read_cloud_data(
     spark: SparkSession,
@@ -64,19 +65,19 @@ def read_cloud_data(
     else:
         raise ValueError(f"Unsupported cloud storage protocol: {path.scheme}")
 
-@contextlib.contextmanager
-def manage_spark_session(spark_name: str) -> contextlib.ExitStack:
+
+def manage_spark_session(spark_name: str) -> SparkSession:
     """
-    Context manager for managing SparkSession resources.
+    Manage SparkSession resources.
     :param spark_name: Name of the SparkSession.
-    :return: ExitStack object.
+    :return: SparkSession object.
     """
-    exit_stack = contextlib.ExitStack()
-    spark = exit_stack.enter_context(SparkSession.builder.appName(spark_name).getOrCreate())
+    spark = SparkSession.builder.appName(spark_name).getOrCreate()
     try:
-        yield spark
+        return spark
     finally:
-        exit_stack.close()
+        spark.stop()  # Stop the SparkSession when done
+
 
 def main():
     with manage_spark_session("Reading Different Data Sources") as spark:
@@ -97,7 +98,9 @@ def main():
         local_orc_data.show()
 
         # Reading JSON data from Azure Blob Storage
-        azure_json_path = pathlib.Path("wasbs://your-container@your-storage-account.blob.core.windows.net/path/to/json_file.json")
+        azure_json_path = pathlib.Path(
+            "wasbs://your-container@your-storage-account.blob.core.windows.net/path/to/json_file.json"
+        )
         if not azure_json_path.exists():
             raise FileNotFoundError(f"Azure JSON file '{azure_json_path}' not found.")
 
@@ -113,7 +116,9 @@ def main():
         gcs_parquet_data.show()
 
         # Reading data from a directory in Google Cloud Storage
-        gcs_directory_path = pathlib.Path("gs://your-bucket/path/to/directory/with/parquet_files")
+        gcs_directory_path = pathlib.Path(
+            "gs://your-bucket/path/to/directory/with/parquet_files"
+        )
         if not gcs_directory_path.is_dir():
             raise FileNotFoundError(f"GCS Directory '{gcs_directory_path}' not found.")
 
@@ -122,41 +127,54 @@ def main():
 
         # Reading data with options from S3
         s3_csv_options = {"header": "true", "inferSchema": "true"}
-        s3_csv_with_options_path = pathlib.Path("s3a://your-bucket/path/to/csv_file_with_header.csv")
+        s3_csv_with_options_path = pathlib.Path(
+            "s3a://your-bucket/path/to/csv_file_with_header.csv"
+        )
         if not s3_csv_with_options_path.exists():
-            raise FileNotFoundError(f"S3 CSV file '{s3_csv_with_options_path}' not found.")
+            raise FileNotFoundError(
+                f"S3 CSV file '{s3_csv_with_options_path}' not found."
+            )
 
-        s3_csv_with_options_data = read_cloud_data(spark, "csv", s3_csv_with_options_path, options=s3_csv_options)
+        s3_csv_with_options_data = read_cloud_data(
+            spark, "csv", s3_csv_with_options_path, options=s3_csv_options
+        )
         s3_csv_with_options_data.show()
 
         # Reading Avro data from Azure Blob Storage
-        azure_avro_path = pathlib.Path("wasbs://your-container@your-storage-account.blob.core.windows.net/path/to/avro_file.avro")
+        azure_avro_path = pathlib.Path(
+            "wasbs://your-container@your-storage-account.blob.core.windows.net/path/to/avro_file.avro"
+        )
         if not azure_avro_path.exists():
             raise FileNotFoundError(f"Azure Avro file '{azure_avro_path}' not found.")
 
         azure_avro_data = read_cloud_data(spark, "avro", azure_avro_path)
         azure_avro_data.show()
 
-if __name__ == "__main__":
 
-    cloud_main()
+if __name__ == "__main__":  
+
+    cloud_env_setup_main()
     print("Storage is set up. Continuing with the rest of the code...")
 
-    with manage_spark_session("Reading Different Data Sources") as spark:
-        # Reading CSV data from the local file system
-        csv_options = {"header": "true", "inferSchema": "true"}
-        local_csv_path = pathlib.Path("pyspark-data-ingest\dataset\customers-100.csv")
-        if not local_csv_path.exists():
-            raise FileNotFoundError(f"Local CSV file '{local_csv_path}' not found.")
+    spark = manage_spark_session("Reading Different Data Sources")
+    # Reading CSV data from the local file system
+    csv_options = {"header": "true", "inferSchema": "true"}
+    local_csv_path = pathlib.Path("pyspark-data-ingest\dataset\customers-100.csv")
+    if not local_csv_path.exists():
+        raise FileNotFoundError(f"Local CSV file '{local_csv_path}' not found.")
 
-        local_csv_data = read_local_data(spark, "csv", local_csv_path,options=csv_options)
-        local_csv_data.show()
+    local_csv_data = read_local_data(spark, "csv", local_csv_path, options=csv_options)
+    local_csv_data.show()
 
-        # Reading data with options from S3
-        s3_csv_options = {"header": "true", "inferSchema": "true"}
-        s3_csv_with_options_path = pathlib.Path("s3a://your-bucket/path/to/csv_file_with_header.csv")
-        if not s3_csv_with_options_path.exists():
-            raise FileNotFoundError(f"S3 CSV file '{s3_csv_with_options_path}' not found.")
+    # Reading data with options from S3
+    s3_csv_options = {"header": "true", "inferSchema": "true"}
+    s3_csv_with_options_path = pathlib.Path(
+        "s3a://your-bucket/path/to/csv_file_with_header.csv"
+    )
+    if not s3_csv_with_options_path.exists():
+        raise FileNotFoundError(f"S3 CSV file '{s3_csv_with_options_path}' not found.")
 
-        s3_csv_with_options_data = read_cloud_data(spark, "csv", s3_csv_with_options_path, options=s3_csv_options)
-        s3_csv_with_options_data.show()
+    s3_csv_with_options_data = read_cloud_data(
+        spark, "csv", s3_csv_with_options_path, options=s3_csv_options
+    )
+    s3_csv_with_options_data.show()
