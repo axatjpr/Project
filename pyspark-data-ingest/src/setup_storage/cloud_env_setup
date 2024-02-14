@@ -1,79 +1,98 @@
-# Import necessary libraries and modules
-import os  # For interacting with the operating system
-import sys  # For interacting the Python runtime environment
-from dotenv import load_dotenv  # For loading environment variables from a .env file
-import google.auth  # For Google authentication
-from google.auth.transport.requests import (
-    Request,
-)  # For sending requests using Google authentication
-import boto3  # For interacting with AWS services
-from azure.core.exceptions import ResourceExistsError  # For handling Azure exceptions
-from azure.storage.blob import (
-    BlobServiceClient,
-)  # For interacting with Azure Blob Storage
+import logging
+import os
+from dotenv import load_dotenv
+import sys
 
+# Import cloud provider libraries only when needed
 
-# Define a function to check if a required environment variable is set
+def configure_logging():
+    """Configures logging to a file and console."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler("cloud_setup.log"),
+            logging.StreamHandler(),
+        ],
+    )
+
 def is_env_var_set(var_name):
-    """Check if a required environment variable is set."""
+    """Checks if a required environment variable is set."""
     return var_name in os.environ and os.environ[var_name]
 
-
-# Define a function to load environment variables from a .env file
 def load_env_file(file_path):
-    """Load environment variables from a file."""
+    """Loads environment variables from a file."""
     try:
         load_dotenv(dotenv_path=file_path)
+        logging.info("Environment variables loaded from .env file")
     except Exception as e:
-        print(f"Error loading .env file: {e}", file=sys.stderr)
+        logging.error(f"Error loading .env file: {e}")
         sys.exit(1)
 
+def setup_cloud_source(provider):
+    """Sets up the cloud source based on the specified provider."""
+    if provider == "aws":
+        setup_aws_source()
+    elif provider == "azure":
+        setup_azure_source()
+    elif provider == "gcs":
+        setup_gcs_source()
+    else:
+        raise ValueError(f"Invalid cloud provider: {provider}")
 
-# Define a function to check if Google Cloud credentials are valid
-def check_gcs_credentials():
-    """Check if Google Cloud credentials are valid."""
-    try:
-        creds, _ = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        if not creds or not creds.valid:
-            raise ValueError("Invalid Google Cloud credentials")
-    except Exception as e:
-        print(f"Error setting up GCS source: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-# Define a function to set up Amazon S3 source using AWS credentials
 def setup_aws_source():
-    """Set up Amazon S3 source using AWS credentials."""
+    """Sets up Amazon S3 source using AWS credentials."""
+    import boto3  # Import only when needed
+
     try:
         if not is_env_var_set("AWS_ACCESS_KEY_ID") or not is_env_var_set(
             "AWS_SECRET_ACCESS_KEY"
         ):
             raise ValueError("AWS access key ID and secret access key not set")
         aws_client = boto3.client("s3")
+        logging.info("AWS S3 client initialized successfully")
     except Exception as e:
-        print(f"Error setting up AWS source: {e}", file=sys.stderr)
+        logging.error(f"Error setting up AWS source: {e}")
         sys.exit(1)
 
-
-# Define a function to set up Azure Blob Storage source using Azure credentials
 def setup_azure_source():
-    """Set up Azure Blob Storage source using Azure credentials."""
+    """Sets up Azure Blob Storage source using Azure credentials."""
+    from azure.core.exceptions import ResourceExistsError
+    from azure.storage.blob import BlobServiceClient
+
     try:
         if not is_env_var_set("AZURE_STORAGE_CONNECTION_STRING"):
             raise ValueError("Azure storage connection string not set")
         service_client = BlobServiceClient.from_connection_string(
             os.environ["AZURE_STORAGE_CONNECTION_STRING"]
         )
+        logging.info("Azure Blob Storage client initialized successfully")
     except Exception as e:
-        print(f"Error setting up Azure source: {e}", file=sys.stderr)
+        logging.error(f"Error setting up Azure source: {e}")
         sys.exit(1)
 
+def setup_gcs_source():
+    """Sets up Google Cloud Storage source using Google credentials."""
+    import google.auth
+    from google.auth.transport.requests import Request
 
-# Define the main function to execute the script
+    try:
+        creds, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        if not creds or not creds.valid:
+            raise ValueError("Invalid Google Cloud credentials")
+        # Use creds for GCS operations
+        logging.info("Google Cloud credentials validated successfully")
+    except Exception as e:
+        logging.error(f"Error setting up GCS source: {e}")
+        sys.exit(1)
+
 def main():
+    configure_logging()
     load_env_file(".env")
-    # check_gcs_credentials()
-    # setup_aws_source()
-    setup_azure_source()
+    cloud_provider = os.environ.get("CLOUD_PROVIDER", "azure")  # Default to Azure
+    setup_cloud_source(cloud_provider)
+
+if __name__ == "__main__":
+    main()

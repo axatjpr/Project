@@ -1,28 +1,31 @@
-from src.data_reader.data_reader import read_data, main as data_reader_main
+from __future__ import absolute_import
+
+from pyspark_data_ingest.src.setup_storage.cloud_env_setup import main as cloud_env_setup_main
+from pyspark_data_ingest.src.data_reader.spark_data_reader import read_local_data, read_cloud_data
+import utils
 
 if __name__ == "__main__":
-    # Create a SparkSession object
-    spark = SparkSession.builder.appName("Reading Different Data Sources").getOrCreate()
+    cloud_env_setup_main()
+    print("Storage is set up. Continuing with the rest of the code...")
 
-    # Reading CSV data
-    csv_data = read_data(spark, "csv", "path/to/csv_file.csv")
-    csv_data.show()
+    spark = utils.manage_spark_session("Reading Different Data Sources")
 
-    # Reading JSON data
-    json_data = read_data(spark, "json", "path/to/json_file.json")
-    json_data.show()
+    # Reading CSV data from the local file system
+    csv_options = {"header": "true", "inferSchema": "true"}
+    local_csv_path = pathlib.Path("pyspark-data-ingest/dataset/customers-100.csv")
+    if not local_csv_path.exists():
+        raise FileNotFoundError(f"Local CSV file '{local_csv_path}' not found.")
 
-    # Reading Parquet data
-    parquet_data = read_data(spark, "parquet", "path/to/parquet_file.parquet")
-    parquet_data.show()
+    local_csv_data = read_local_data(spark, "csv", local_csv_path, options=csv_options)
+    local_csv_data.show()
 
-    # Reading data from a directory
-    directory_data = read_data(spark, "parquet", "path/to/directory/with/parquet_files")
-    directory_data.show()
+    # Reading data with options from S3
+    s3_csv_options = {"header": "true", "inferSchema": "true"}
+    s3_csv_with_options_path = pathlib.Path("s3a://your-bucket/path/to/csv_file_with_header.csv")
+    if not s3_csv_with_options_path.exists():
+        raise FileNotFoundError(f"S3 CSV file '{s3_csv_with_options_path}' not found.")
 
-    # Reading data with options
-    options = {"header": "true", "inferSchema": "true"}
-    csv_with_options_data = read_data(spark, "csv", "path/to/csv_file_with_header.csv", options=options)
-    csv_with_options_data.show()
-
-    spark.stop()
+    s3_csv_with_options_data = read_cloud_data(
+        spark, "csv", s3_csv_with_options_path, options=s3_csv_options
+    )
+    s3_csv_with_options_data.show()
